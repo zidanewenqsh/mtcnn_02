@@ -135,6 +135,5 @@ class ONet(Net):
 
 if __name__ == '__main__':
     net = Net()
-    print("hello")
     # torch.save(net, "pnet.org")
 

@@ -9,45 +9,19 @@ import time
 from torch.utils import data
 import matplotlib.pyplot as plt
 import configparser
-from src.nets import PNet, RNet, ONet, Net
-from dataset.datasets import Dataset
-from detect.detector import Detector
+from nets import PNet, RNet, ONet, Net
+from datasets import Dataset
+from detectors import Detector
+
+# ModuleNotFoundError: No module named 'src'
 curPath = os.path.abspath(os.path.dirname(__file__))
 rootPath = os.path.split(curPath)[0]
 sys.path.append(rootPath)
 
 
-
-# DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# CFGFILE = r".\cfg.ini"
-
-SAVE_DIR = r""
-PIC_DIR = r""
-LABEL_DIR = r""
-
-ALPHA = 0.5
-
-CONTINUETRAIN = False
-NEEDTEST = False
-NEEDSAVE = False
-NEEDSHOW = False
-EPOCH = 1
-BATCHSIZE = 1
-NUMWORKERS = 1
-LR = 1e-3
-ISCUDA = True
-SAVEDIR_EPOCH = r""
-TEST_IMG = r""
-PNET_TRAINED = r""
-RNET_TRAINED = r""
-ONET_TRAINED = r""
-RECORDPOINT = 10
-TESTPOINT = 100
-
-
 class Trainer:
     def __init__(self, netfile_name: str, cfgfile=r".\cfg.ini"):
-        # self.net = net
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         parser = argparse.ArgumentParser(description="base class for network training")
         self.args = self.__argparser(parser)
@@ -59,10 +33,7 @@ class Trainer:
 
         self.__cfginit(cfgfile)
 
-        self.__makedir(SAVE_DIR)
-
         id = self.netfile_name.split("_")[0]
-        # self.net = {"pnet":PNet(), "rnet":RNet(), "onet":ONet()}[self.netfile_name.split("_")[0]]
         print("id: ", id)
         if id == 'pnet':
             self.net = PNet()
@@ -73,16 +44,17 @@ class Trainer:
         else:
             raise ValueError
 
+        self.__makedir(self.SAVE_DIR)
         net_savefile = "{0}.pth".format(self.netfile_name)
         netparam_savefile = "{0}.pt".format(self.netfile_name)
-        self.save_dir = os.path.join(SAVE_DIR, "nets")
+        self.save_dir = os.path.join(self.SAVE_DIR, "nets")
         self.__makedir(self.save_dir)
         self.save_path = os.path.join(self.save_dir, net_savefile)
         self.save_path_p = os.path.join(self.save_dir, netparam_savefile)
-        self.__makedir(SAVEDIR_EPOCH)
-        self.savepath_epoch = os.path.join(SAVEDIR_EPOCH, net_savefile)
+        self.__makedir(self.SAVEDIR_EPOCH)
+        self.savepath_epoch = os.path.join(self.SAVEDIR_EPOCH, net_savefile)
 
-        if CONTINUETRAIN:
+        if self.CONTINUETRAIN:
             if os.path.exists(self.save_path):
                 self.net = torch.load(self.save_path)
                 print("net load successful")
@@ -93,31 +65,75 @@ class Trainer:
             self.net.paraminit()
             print("param initial complete")
 
-        self.logdir = os.path.join(SAVE_DIR, "log")
+        self.logdir = os.path.join(self.SAVE_DIR, "log")
         self.__makedir(self.logdir)
         self.logdictfile = os.path.join(self.logdir, "{0}.log".format(self.netfile_name))
 
-        if os.path.exists(self.logdictfile) and CONTINUETRAIN:
+        if os.path.exists(self.logdictfile) and self.CONTINUETRAIN:
             self.resultdict = torch.load(self.logdictfile)
             print("log load successfully")
         else:
             self.resultdict = {}
 
-        # self.size = {"pnet": 12, "rnet": 24, "onet": 48}[self.net.name]
         self.cls_loss = nn.BCELoss()
         self.offset_loss = nn.MSELoss()
         self.optimizer = optim.Adam(self.net.parameters())
 
-        if ISCUDA:
+        if self.ISCUDA:
             self.net = self.net.to(self.device)
 
-        if NEEDTEST:
+        if self.NEEDTEST:
             self.detecter = Detector(
                 returnnet=self.net.name,
-                trainnet=self.net
+                pnet_f=self.PNET_TRAINED,
+                rnet_f=self.RNET_TRAINED,
+                onet_f=self.ONET_TRAINED,
+                trainnet=self.net,
+                isCuda=self.ISCUDA
             )
 
         print("initial complete")
+
+        if self.FUNC == 2 and os.path.exists(self.logdictfile):
+            scalarkey = self.args.scalarkey if self.args.scalarkey else "loss"
+            self.scalarplotting(scalarkey)
+            self.FDplotting()
+            print("ok")
+
+        if self.FUNC == 1:
+            self.train()
+
+    def __cfginit(self, cfgfile):
+        config = configparser.ConfigParser()
+        config.read(cfgfile)
+        self.SAVE_DIR = config.get(self.netfile_name, "SAVE_DIR")
+        self.PIC_DIR = config.get(self.netfile_name, "PIC_DIR")
+        self.LABEL_DIR = config.get(self.netfile_name, "LABEL_DIR")
+        self.SAVEDIR_EPOCH = config.get(self.netfile_name, "SAVEDIR_EPOCH")
+        self.ISCUDA = config.getboolean(self.netfile_name, "ISCUDA")
+        self.NEEDTEST = config.getboolean(self.netfile_name, "NEEDTEST")
+        self.CONTINUETRAIN = config.getboolean(self.netfile_name, "CONTINUETRAIN")
+        self.NEEDSAVE = config.getboolean(self.netfile_name, "NEEDSAVE")
+
+        self.EPOCH = self.args.epoch if self.args.epoch else config.getint(self.netfile_name, "EPOCH")
+        # self.ALPHA = config.getfloat(self.netfile_name, "ALPHA")
+        self.ALPHA = self.args.alpha if self.args.alpha else config.getfloat(self.netfile_name, "ALPHA")
+        self.FUNC = self.args.func if self.args.func else config.getint(self.netfile_name, "FUNC")
+
+        self.PNET_TRAINED = config.get(self.netfile_name, "PNET_TRAINED")
+        self.RNET_TRAINED = config.get(self.netfile_name, "RNET_TRAINED")
+        self.ONET_TRAINED = config.get(self.netfile_name, "ONET_TRAINED")
+        self.NEEDSHOW = config.getboolean(self.netfile_name, "NEEDSHOW")
+        self.TEST_IMG = config.get(self.netfile_name, "TEST_IMG")
+
+        self.BATCHSIZE = self.args.batchsize if self.args.batchsize else config.getint(self.netfile_name,
+                                                                                            "BATCHSIZE")
+        self.NUMWORKERS = self.args.numworkers if self.args.numworkers else config.getint(self.netfile_name,
+                                                                                               "NUMWORKERS")
+        self.RECORDPOINT = self.args.recordpoint if self.args.recordpoint else config.getint(self.netfile_name,
+                                                                                                  "RECORDPOINT")
+        self.TESTPOINT = self.args.testpoint if self.args.testpoint else config.getint(self.netfile_name,
+                                                                                            "TESTPOINT")
 
     def __makedir(self, path):
         '''
@@ -129,33 +145,26 @@ class Trainer:
             os.makedirs(path)
         return path
 
-    def __cfginit(self, cfgfile):
-        config = configparser.ConfigParser()
-        config.read(cfgfile)
-        print(self.netfile_name)
-        items_ = config.items(self.netfile_name)
-        for key, value in items_:
-            if key.upper() in globals().keys():
-                try:
-                    globals()[key.upper()] = config.getint(self.netfile_name, key.upper())
-                except:
-                    try:
-                        globals()[key.upper()] = config.getfloat(self.netfile_name, key.upper())
-                    except:
-                        try:
-                            globals()[key.upper()] = config.getboolean(self.netfile_name, key.upper())
-                        except:
-                            globals()[key.upper()] = config.get(self.netfile_name, key.upper())
-
     def __argparser(self, parser):
-        parser.add_argument("-f", "--name", type=str, default=None, help="the netfile name to train")
+        parser.add_argument("-n", "--name", type=str, default=None, help="the netfile name to train")
+        parser.add_argument("-e", "--epoch", type=int, default=1, help="number of epochs")
+        parser.add_argument("-b", "--batchsize", type=int, default=None, help="mini-batch size")
+        parser.add_argument("-w", "--numworkers", type=int, default=None,
+                            help="number of threads used during batch generation")
+        parser.add_argument("-l", "--lr", type=float, default=None, help="learning rate for gradient descent")
+        parser.add_argument("-r", "--recordpoint", type=int, default=None, help="print frequency")
+        parser.add_argument("-t", "--testpoint", type=int, default=None,
+                            help="interval between evaluations on validation set")
+        parser.add_argument("-a", "--alpha", type=float, default=None, help="ratio of conf and offset loss")
+        parser.add_argument("-f", "--func", type=int, default=None, help="the choice of function")
+        parser.add_argument("-k", "--scalarkey", type=str, default=None, help="the choice of scalar to plot")
         return parser.parse_args()
 
     def __loss_fn(self, output_cls, output_offset, cls, offset):
 
         cls_loss = self.cls_loss(output_cls, cls)
         offset_loss = self.offset_loss(offset, output_offset)
-        loss = ALPHA * cls_loss + (1 - ALPHA) * offset_loss
+        loss = self.ALPHA * cls_loss + (1 - self.ALPHA) * offset_loss
         return loss, cls_loss, offset_loss
 
     def scalarplotting(self, key: str = 'loss', j=0):
@@ -168,7 +177,7 @@ class Trainer:
         '''
         datas = torch.load(self.logdictfile)
 
-        save_dir = os.path.join(SAVE_DIR, key)
+        save_dir = os.path.join(self.SAVE_DIR, "statistics")
         self.__makedir(save_dir)
         save_name = "{0}.jpg".format(key)
 
@@ -177,30 +186,40 @@ class Trainer:
         if len(datas) > 0:
             for i, j_values in datas.items():
                 values.append(j_values[j][key])
+
         if len(values) != 0:
+            plt.clf()
             plt.plot(values)
             plt.savefig(save_file)
+
+        if self.NEEDSHOW:
             plt.show()
+            plt.pause(0.1)
 
     def FDplotting(self, bins=10):
-        save_dir = os.path.join(SAVE_DIR, "params")
+        save_dir = os.path.join(self.SAVE_DIR, "statistics")
         self.__makedir(save_dir)
         save_name = "{0}_param.jpg".format(self.netfile_name)
-        save_file = os.path.join(SAVE_DIR, save_name)
+        save_file = os.path.join(save_dir, save_name)
         params = []
         for param in self.net.parameters():
             params.extend(param.view(-1).cpu().detach().numpy())
         params = np.array(params)
         histo = np.histogram(params, bins, range=(np.min(params), np.max(params)))
+
+        plt.clf()
         plt.plot(histo[1][1:], histo[0])
         plt.savefig(save_file)
-        plt.show()
+
+        if self.NEEDSHOW:
+            plt.show()
+            plt.pause(0.1)
 
     def train(self):
         start_time = time.time()
-        dataset = Dataset(LABEL_DIR, PIC_DIR, self.net.size)
-        dataloader = data.DataLoader(dataset, batch_size=BATCHSIZE, shuffle=True,
-                                     num_workers=NUMWORKERS, drop_last=True)
+        dataset = Dataset(self.LABEL_DIR, self.PIC_DIR, self.net.size)
+        dataloader = data.DataLoader(dataset, batch_size=self.BATCHSIZE, shuffle=True,
+                                     num_workers=self.NUMWORKERS, drop_last=True)
         dataloader_len = len(dataloader)
 
         i = len(self.resultdict)
@@ -218,7 +237,7 @@ class Trainer:
         print("i3 ", i, j)
         # for i in range(self.args.epoch):
         flag = False
-        while i < EPOCH:
+        while i < self.EPOCH:
             if flag:
                 break
             self.net.train()
@@ -229,7 +248,7 @@ class Trainer:
             for img_data_, cls_, offset_ in dataloader:
 
                 self.net.train()
-                if ISCUDA:
+                if self.ISCUDA:
                     img_data_ = img_data_.to(self.device)
                     cls_ = cls_.to(self.device)
                     offset_ = offset_.to(self.device)
@@ -262,7 +281,7 @@ class Trainer:
                                          "offset_loss": offset_loss.detach().cpu(), "cls_acc": cls_acc.detach().cpu(),
                                          "time": time.time()}
 
-                if j % RECORDPOINT == 0:
+                if j % self.RECORDPOINT == 0:
 
                     offset_acc = torch.mean(torch.lt(torch.abs(torch.sub(offset, output_offset)), 0.02).float())
 
@@ -272,17 +291,17 @@ class Trainer:
                     print(result)
                     # print(self.net.mark)
 
-                    if NEEDSAVE:
+                    if self.NEEDSAVE:
                         torch.save(self.net, self.save_path)
                         print("net save successful")
                         torch.save(self.resultdict, self.logdictfile)
-                if j % (RECORDPOINT + 1) == 0:
-                    if NEEDSAVE:
+                if j % (self.RECORDPOINT + 1) == 0:
+                    if self.NEEDSAVE:
                         torch.save(self.net.state_dict(), self.save_path_p)
                         print("netparam save successful")
                         torch.save(self.resultdict, self.logdictfile)
 
-                if NEEDTEST and j % TESTPOINT == 0 and j != 0:
+                if self.NEEDTEST and j % self.TESTPOINT == 0 and j != 0:
                     self.test(i, j)
 
                 if i > 5 and j >= 190:
@@ -294,7 +313,7 @@ class Trainer:
                     break
                 else:
                     j += 1
-            if NEEDSAVE:
+            if self.NEEDSAVE:
                 torch.save(self.net.state_dict(), self.savepath_epoch)
                 print("an epoch save successful")
             i += 1
@@ -304,13 +323,15 @@ class Trainer:
             self.net.eval()
             # img = Image.open(TEST_IMG)
             img_name = f"{i}_{j}.jpg"
-            testpic_savedir = os.path.join(SAVE_DIR, "testpic", self.netfile_name)
+            testpic_savedir = os.path.join(self.SAVE_DIR, "testpic", self.netfile_name)
             self.__makedir(testpic_savedir)
-            self.detecter.image_genarate(TEST_IMG, savedir=testpic_savedir if NEEDSAVE else None, img_name=img_name,
-                                         show=NEEDSHOW)
+            self.detecter.image_genarate(self.TEST_IMG, savedir=testpic_savedir if self.NEEDSAVE else None,
+                                         img_name=img_name, show=self.NEEDSHOW)
 
 
 if __name__ == '__main__':
-    print("hello")
     trainer = Trainer(netfile_name="onet_00_0")
     # trainer.train()
+    trainer.FDplotting()
+    trainer.scalarplotting()
+    trainer.FDplotting()

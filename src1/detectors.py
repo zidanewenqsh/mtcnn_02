@@ -3,8 +3,8 @@ from torchvision import transforms
 import time
 import numpy as np
 # from src import cfg
-from tool import detectutils
-from tool import utils
+
+import utils
 import cv2
 from PIL import Image, ImageDraw
 from matplotlib import pyplot as plt
@@ -219,7 +219,7 @@ class Detector():
         _img_dataset = []
         img = image
         # 转成方形框
-        _pnet_boxes = detectutils.to_square(pnet_boxes, img)
+        _pnet_boxes = utils.to_square(pnet_boxes, img)
 
         for _box in _pnet_boxes:
             _img_dataset.append(self.transform(np.array(img.crop(_box.numpy()).resize((24, 24)))))
@@ -273,7 +273,7 @@ class Detector():
         # 定义用于放实际框的列表
         img = image
         _img_dataset = []
-        _rnet_boxes = detectutils.to_square(rnet_boxes, img)
+        _rnet_boxes = utils.to_square(rnet_boxes, img)
 
         for _box in _rnet_boxes:
             _img_dataset.append(self.transform(np.array(img.crop(_box.numpy()).resize((48, 48)))))
