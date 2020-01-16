@@ -1,4 +1,13 @@
 # Byte-compiled / optimized / DLL files
+#/datas/
+#/saves/
+/*s/
+/.*/
+*.pt
+*.pth
+*.txt
+*.torch
+test*.py
 __pycache__/
 *.py[cod]
 *$py.class
