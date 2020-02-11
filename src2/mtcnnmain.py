@@ -1,14 +1,5 @@
 import os
 import sys
-
-# ModuleNotFoundError: No module named 'src'
-curPath = os.path.abspath(os.path.dirname(__file__))
-rootPath = os.path.split(curPath)[0]
-sys.path.append(rootPath)
-print(curPath)
-print("*")
-print(rootPath)
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -18,16 +9,36 @@ import time
 from torch.utils import data
 import matplotlib.pyplot as plt
 import configparser
-# from nets import PNet, RNet, ONet, Net
-# from datasets import Dataset
-# from detectors import Detector
+from nets import PNet, RNet, ONet, Net
+from datasets import Dataset
+from detectors import Detector
 
-from src.nets import PNet, RNet, ONet, Net
-from dataset.datasets import Dataset
-from detect.detectors import Detector
+# ModuleNotFoundError: No module named 'src'
+curPath = os.path.abspath(os.path.dirname(__file__))
+rootPath = os.path.split(curPath)[0]
+sys.path.append(rootPath)
 
-
-
+SAVE_DIR = r"D:\PycharmProjects\mtcnn_02\saves"
+PIC_DIR = r"F:\Dataset\mctnn_dataset\save_10261_20200114\pic"
+LABEL_DIR = r"F:\Dataset\mctnn_dataset\save_10261_20200114\label"
+ALPHA = 0.5
+CONTINUETRAIN = True
+NEEDTEST = True
+NEEDSAVE = True
+NEEDSHOW = False
+EPOCH = 2
+BATCHSIZE = 25
+NUMWORKERS = 1
+LEARNING_RATE = 1e-3
+ISCUDA = True
+SAVEDIR_EPOCH = r"D:\PycharmProjects\mtcnn_02\saves\netbackup"
+TEST_IMG = r"D:\PycharmProjects\mtcnn_02\images\000001.jpg"
+PNET_TRAINED = r"D:\PycharmProjects\mtcnn_02\params\pnet_07.pth"
+RNET_TRAINED = r"D:\PycharmProjects\mtcnn_02\paramsrnet_07_4.pth"
+ONET_TRAINED = r"D:\PycharmProjects\mtcnn_02\params\onet_07_4.pth"
+RECORDPOINT = 1
+TESTPOINT = 2
+FUNC = 0
 
 class Trainer:
     def __init__(self, netfile_name: str, cfgfile=r".\cfg.ini"):
@@ -116,34 +127,30 @@ class Trainer:
     def __cfginit(self, cfgfile):
         config = configparser.ConfigParser()
         config.read(cfgfile)
-        self.SAVE_DIR = config.get(self.netfile_name, "SAVE_DIR")
-        self.PIC_DIR = config.get(self.netfile_name, "PIC_DIR")
-        self.LABEL_DIR = config.get(self.netfile_name, "LABEL_DIR")
-        self.SAVEDIR_EPOCH = config.get(self.netfile_name, "SAVEDIR_EPOCH")
-        self.ISCUDA = config.getboolean(self.netfile_name, "ISCUDA")
-        self.NEEDTEST = config.getboolean(self.netfile_name, "NEEDTEST")
-        self.CONTINUETRAIN = config.getboolean(self.netfile_name, "CONTINUETRAIN")
-        self.NEEDSAVE = config.getboolean(self.netfile_name, "NEEDSAVE")
+        self.SAVE_DIR = SAVE_DIR
+        self.PIC_DIR = PIC_DIR
+        self.LABEL_DIR = LABEL_DIR
+        self.SAVEDIR_EPOCH = SAVEDIR_EPOCH
+        self.ISCUDA = ISCUDA
+        self.NEEDTEST = NEEDTEST
+        self.CONTINUETRAIN = CONTINUETRAIN
+        self.NEEDSAVE = NEEDSAVE
 
         self.EPOCH = self.args.epoch if self.args.epoch else config.getint(self.netfile_name, "EPOCH")
         # self.ALPHA = config.getfloat(self.netfile_name, "ALPHA")
         self.ALPHA = self.args.alpha if self.args.alpha else config.getfloat(self.netfile_name, "ALPHA")
         self.FUNC = self.args.func if self.args.func else config.getint(self.netfile_name, "FUNC")
 
-        self.PNET_TRAINED = config.get(self.netfile_name, "PNET_TRAINED")
-        self.RNET_TRAINED = config.get(self.netfile_name, "RNET_TRAINED")
-        self.ONET_TRAINED = config.get(self.netfile_name, "ONET_TRAINED")
-        self.NEEDSHOW = config.getboolean(self.netfile_name, "NEEDSHOW")
-        self.TEST_IMG = config.get(self.netfile_name, "TEST_IMG")
+        self.PNET_TRAINED = PNET_TRAINED
+        self.RNET_TRAINED = RNET_TRAINED
+        self.ONET_TRAINED = ONET_TRAINED
+        self.NEEDSHOW = NEEDSHOW
+        self.TEST_IMG = TEST_IMG
 
-        self.BATCHSIZE = self.args.batchsize if self.args.batchsize else config.getint(self.netfile_name,
-                                                                                            "BATCHSIZE")
-        self.NUMWORKERS = self.args.numworkers if self.args.numworkers else config.getint(self.netfile_name,
-                                                                                               "NUMWORKERS")
-        self.RECORDPOINT = self.args.recordpoint if self.args.recordpoint else config.getint(self.netfile_name,
-                                                                                                  "RECORDPOINT")
-        self.TESTPOINT = self.args.testpoint if self.args.testpoint else config.getint(self.netfile_name,
-                                                                                            "TESTPOINT")
+        self.BATCHSIZE = self.args.batchsize if self.args.batchsize else BATCHSIZE
+        self.NUMWORKERS = self.args.numworkers if self.args.numworkers else NUMWORKERS
+        self.RECORDPOINT = self.args.recordpoint if self.args.recordpoint else RECORDPOINT
+        self.TESTPOINT = self.args.testpoint if self.args.testpoint else TESTPOINT
 
     def __makedir(self, path):
         '''
@@ -168,6 +175,9 @@ class Trainer:
         parser.add_argument("-a", "--alpha", type=float, default=None, help="ratio of conf and offset loss")
         parser.add_argument("-f", "--func", type=int, default=None, help="the choice of function")
         parser.add_argument("-k", "--scalarkey", type=str, default=None, help="the choice of scalar to plot")
+        parser.add_argument("-x", "--needshow", type=bool, default=None, help="need show or not")
+        parser.add_argument("-y", "--needtest", type=bool, default=None, help="if need test")
+        parser.add_argument("-z", "--continuetrain", type=bool, default=None, help="if continue train")
         return parser.parse_args()
 
     def __loss_fn(self, output_cls, output_offset, cls, offset):
@@ -342,6 +352,6 @@ class Trainer:
 if __name__ == '__main__':
     trainer = Trainer(netfile_name="onet_00_0")
     # trainer.train()
-    # trainer.FDplotting()
-    # trainer.scalarplotting()
-    # trainer.FDplotting()
+    trainer.FDplotting()
+    trainer.scalarplotting()
+    trainer.FDplotting()

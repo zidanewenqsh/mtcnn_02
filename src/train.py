@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import configparser
 from src.nets import PNet, RNet, ONet, Net
 from dataset.datasets import Dataset
-from detect.detector import Detector
+from detect.detectors import Detector
 curPath = os.path.abspath(os.path.dirname(__file__))
 rootPath = os.path.split(curPath)[0]
 sys.path.append(rootPath)

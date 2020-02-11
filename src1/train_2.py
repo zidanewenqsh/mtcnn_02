@@ -1,5 +1,11 @@
 import os
 import sys
+
+# ModuleNotFoundError: No module named 'src'
+curPath = os.path.abspath(os.path.dirname(__file__))
+rootPath = os.path.split(curPath)[0]
+sys.path.append(rootPath)
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -13,10 +19,7 @@ from nets import PNet, RNet, ONet, Net
 from datasets import Dataset
 from detectors import Detector
 
-# ModuleNotFoundError: No module named 'src'
-curPath = os.path.abspath(os.path.dirname(__file__))
-rootPath = os.path.split(curPath)[0]
-sys.path.append(rootPath)
+
 
 
 class Trainer:

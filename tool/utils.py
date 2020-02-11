@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from PIL import Image, ImageDraw
+import time
 
 def formattime(start_ms, end_ms):
     ms = end_ms - start_ms
@@ -10,14 +11,6 @@ def formattime(start_ms, end_ms):
     h_end, m_end = divmod(m_end, 60)
     time_data = "%02d:%02d:%02d" % (h_end, m_end, s_end)
     return time_data
-
-def area(box):
-    return torch.mul((box[2] - box[0]), (box[3] - box[1]))
-
-
-def areas(boxes):
-    return torch.mul((boxes[:, 2] - boxes[:, 0]), (boxes[:, 3] - boxes[:, 1]))
-
 
 def makedir(path):
     '''
@@ -28,22 +21,6 @@ def makedir(path):
     if not os.path.exists(path):
         os.makedirs(path)
     return path
-
-
-def preclear(*paths):
-    pathlist = []
-    pathlist.extend(paths)
-
-    def cleardir(path):
-        if os.path.isdir(path):
-            del_file(path)
-            return True
-        else:
-            return False
-
-    for path in pathlist:
-        cleardir(path)
-    return
 
 def toTensor(data):
     '''
@@ -76,7 +53,6 @@ def toNumpy(data):
         return np.array(list(data))  # 针对列表和元组
     return
 
-
 def toList(data):
     '''
 
@@ -91,7 +67,6 @@ def toList(data):
         return list(data)  # 针对列表和元组
     return
 
-
 def isBox(box):
     '''
     判断是否是box
@@ -102,7 +77,6 @@ def isBox(box):
     if box.ndim == 1 and box.shape == (4,) and np.less(box[0], box[2]) and np.less(box[1], box[3]):
         return True
     return False
-
 
 def isBoxes(boxes):
     '''
@@ -116,6 +90,13 @@ def isBoxes(boxes):
             return True
     return False
 
+
+def area(box):
+    return torch.mul((box[2] - box[0]), (box[3] - box[1]))
+
+
+def areas(boxes):
+    return torch.mul((boxes[:, 2] - boxes[:, 0]), (boxes[:, 3] - boxes[:, 1]))
 
 # iou
 def iou(box, boxes, isMin=False):
@@ -149,6 +130,7 @@ def iou(box, boxes, isMin=False):
     yy2 = torch.min(box[3], boxes[:, 3])
 
     inter = torch.mul(torch.max((xx2 - xx1), torch.Tensor([0, ])), torch.max((yy2 - yy1), torch.Tensor([0, ])))
+    # print("inter",inter.shape, box_area.shape, boxes_area.shape, box_area)
 
     if (isMin == True):
         over = torch.div(inter, torch.min(box_area, boxes_area))  # intersection divided by union
@@ -171,6 +153,7 @@ def nms(boxes_input, threhold=0.3, isMin=False):
         boxes = toTensor(boxes_input)
 
         boxes = boxes[torch.argsort(-boxes[:, 4])]
+
         r_box = []
         while (boxes.size(0) > 1):
             r_box.append(boxes[0])
@@ -342,59 +325,68 @@ if __name__ == '__main__':
     a = np.array([24, 23, 55, 66])
     b = torch.from_numpy(a).float()
     bs = torch.Tensor([[2, 2, 30, 30, 40], [3, 3, 25, 25, 60], [18, 18, 27, 27, 15]])
-    print(iou(a, bs))
-    box = [1, 1, 4, 4]
-    box = (1, 2, 3, 4)
-    print(isinstance(box, tuple))
-    print(torch.Tensor(box))
-    boxes = bs[:, :4]
-    print(area(box))
-    print(areas(boxes))
-    '''
-    box: [129, 133, 318, 334]
-boxes [97, 169, 299, 326]'''
-    box = [129, 133, 318, 334]
-    boxes = [97, 169, 299, 326]
-    print(iou(box, boxes))
-    print(nms(bs))
-    data01 = "000001.jpg  141   85  301  334  160  249    409    687"
-    data02 = data01.strip().split()
-    print(len(data02))
-    print(data02)
-    # print(getoffset(data02, 0.2, 0.8))
-    name, offset, box, box_ = getoffset(data02, 0.2, 0.8)
-    print(checkoffset(offset, box, box_))
-    box1 = np.array(box)
-    box1_ = np.array(box_)
-    print(box1.shape, box1_.shape, np.array(offset).shape)
-    print("offset", offset)
-    print("box_", box_)
-    print("box", box)
-    print(offsetToBox(offset, box_))
-    print(not isBox(box))
-    a = torch.Tensor([[1, 3, 3, 3], [2, 3, 5, 6], [3, 4, 7, 8]])
-    print(isBoxes(a))
-    boxes = torch.Tensor([[31.0000, 54.0000, 240.0000, 241.0000, 0.5618],
-                          [91.0000, 40.0000, 281.0000, 236.0000, 0.8155],
-                          [3.0000, 83.0000, 196.0000, 260.0000, 0.5850],
-                          [23.0000, 111.0000, 275.0000, 303.0000, 0.9364],
-                          [84.0000, 116.0000, 314.0000, 316.0000, 0.9743],
-                          [9.0000, 124.0000, 220.0000, 319.0000, 0.8091],
-                          [26.0000, 149.0000, 279.0000, 345.0000, 0.9504],
-                          [87.0000, 167.0000, 323.0000, 364.0000, 0.9123],
-                          [10.0000, 168.0000, 218.0000, 372.0000, 0.7569],
-                          [42.0000, 177.0000, 264.0000, 369.0000, 0.8784],
-                          [101.0000, 185.0000, 296.0000, 373.0000, 0.6029],
-                          [11.0000, 228.0000, 252.0000, 429.0000, 0.5594],
-                          [70.0000, 220.0000, 274.0000, 412.0000, 0.8263],
-                          [-10.0000, 294.0000, 274.0000, 485.0000, 0.6613],
-                          [72.0000, 295.0000, 313.0000, 490.0000, 0.9254],
-                          [141.0000, 273.0000, 330.0000, 471.0000, 0.5299],
-                          [53.0000, 317.0000, 295.0000, 501.0000, 0.8993],
-                          [120.0000, 311.0000, 328.0000, 504.0000, 0.5373],
-                          [38.0000, 319.0000, 262.0000, 503.0000, 0.6784]])
-    print(isBoxes(boxes))
-    boxes1 = toNumpy(boxes)
-    print(boxes1.ndim, boxes1.shape)
-    print(nms(boxes1))
+    t1 = time.time()
+    for i in range(1000):
+        x = iou(a, bs)
+        y = nms(bs)
+        # print("iou",utils_c.iou(a, bs))
+        # print("nms", utils_c.nms(bs))
+    t2 = time.time()
+    print(t2 - t1)
+    # print("iou",iou(a, bs))
+    # print(nms(bs))
+#     box = [1, 1, 4, 4]
+#     box = (1, 2, 3, 4)
+#     print(isinstance(box, tuple))
+#     print(torch.Tensor(box))
+#     boxes = bs[:, :4]
+#     print(area(box))
+#     print(areas(boxes))
+#     '''
+#     box: [129, 133, 318, 334]
+# boxes [97, 169, 299, 326]'''
+#     box = [129, 133, 318, 334]
+#     boxes = [97, 169, 299, 326]
+#     print(iou(box, boxes))
 
+#     data01 = "000001.jpg  141   85  301  334  160  249    409    687"
+#     data02 = data01.strip().split()
+#     print(len(data02))
+#     print(data02)
+#     # print(getoffset(data02, 0.2, 0.8))
+#     name, offset, box, box_ = getoffset(data02, 0.2, 0.8)
+#     print(checkoffset(offset, box, box_))
+#     box1 = np.array(box)
+#     box1_ = np.array(box_)
+#     print(box1.shape, box1_.shape, np.array(offset).shape)
+#     print("offset", offset)
+#     print("box_", box_)
+#     print("box", box)
+#     print(offsetToBox(offset, box_))
+#     print(not isBox(box))
+#     a = torch.Tensor([[1, 3, 3, 3], [2, 3, 5, 6], [3, 4, 7, 8]])
+#     print(isBoxes(a))
+#     boxes = torch.Tensor([[31.0000, 54.0000, 240.0000, 241.0000, 0.5618],
+#                           [91.0000, 40.0000, 281.0000, 236.0000, 0.8155],
+#                           [3.0000, 83.0000, 196.0000, 260.0000, 0.5850],
+#                           [23.0000, 111.0000, 275.0000, 303.0000, 0.9364],
+#                           [84.0000, 116.0000, 314.0000, 316.0000, 0.9743],
+#                           [9.0000, 124.0000, 220.0000, 319.0000, 0.8091],
+#                           [26.0000, 149.0000, 279.0000, 345.0000, 0.9504],
+#                           [87.0000, 167.0000, 323.0000, 364.0000, 0.9123],
+#                           [10.0000, 168.0000, 218.0000, 372.0000, 0.7569],
+#                           [42.0000, 177.0000, 264.0000, 369.0000, 0.8784],
+#                           [101.0000, 185.0000, 296.0000, 373.0000, 0.6029],
+#                           [11.0000, 228.0000, 252.0000, 429.0000, 0.5594],
+#                           [70.0000, 220.0000, 274.0000, 412.0000, 0.8263],
+#                           [-10.0000, 294.0000, 274.0000, 485.0000, 0.6613],
+#                           [72.0000, 295.0000, 313.0000, 490.0000, 0.9254],
+#                           [141.0000, 273.0000, 330.0000, 471.0000, 0.5299],
+#                           [53.0000, 317.0000, 295.0000, 501.0000, 0.8993],
+#                           [120.0000, 311.0000, 328.0000, 504.0000, 0.5373],
+#                           [38.0000, 319.0000, 262.0000, 503.0000, 0.6784]])
+#     print(isBoxes(boxes))
+#     boxes1 = toNumpy(boxes)
+#     print(boxes1.ndim, boxes1.shape)
+#     print(nms(boxes1))
+#

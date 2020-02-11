@@ -1,6 +1,8 @@
 # Byte-compiled / optimized / DLL files
 #/datas/
 #/saves/
+/exe/
+/tool_c/
 /*s/
 /.*/
 *.pt
